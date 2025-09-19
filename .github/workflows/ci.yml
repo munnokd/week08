@@ -29,9 +29,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          # Because working-directory is set, this path is relative to it:
-          cache-dependency-path: backend/order_service/package-lock.json
+          # cache: npm
+          # # Because working-directory is set, this path is relative to it:
+          # cache-dependency-path: backend/order_service/package-lock.json
 
 
       - name: Install deps
