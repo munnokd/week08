@@ -1,0 +1,92 @@
+name: CI
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development]
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Snapshot repo structure for debugging (downloadable artifact)
+      - name: Snapshot repo tree
+        run: |
+          pwd
+          ls -la
+          echo "---- FULL TREE (first 400 lines) ----" > repo-tree.txt
+          ls -R >> repo-tree.txt
+      - name: Upload tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-tree
+          path: repo-tree.txt
+
+      # Find folder that contains package.json (don’t fail if missing)
+      - name: Locate project dir (package.json)
+        id: finddir
+        shell: bash
+        run: |
+          set -e
+          # Try common locations; extend as needed
+          for d in backend/order_service backend order_service .; do
+            if [ -f "$d/package.json" ]; then
+              echo "Found package.json in: $d"
+              echo "dir=$d" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          # Fallback: search tracked files
+          first="$(git ls-files | grep -E '(^|/)package.json$' | head -n1 || true)"
+          if [ -n "$first" ]; then
+            d="$(dirname "$first")"
+            echo "Found package.json in: $d"
+            echo "dir=$d" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "WARN: No package.json found; skipping Node steps."
+          echo "dir=" >> "$GITHUB_OUTPUT"
+
+      # Only proceed if a dir was found
+      - name: Setup Node
+        if: ${{ steps.finddir.outputs.dir != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.finddir.outputs.dir }}/package-lock.json
+
+      - name: Ensure npm cache dir exists
+        if: ${{ steps.finddir.outputs.dir != '' }}
+        run: mkdir -p "$(npm config get cache)"
+
+      - name: Install deps (prefer ci, fallback to install)
+        if: ${{ steps.finddir.outputs.dir != '' }}
+        working-directory: ${{ steps.finddir.outputs.dir }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "WARN: package-lock.json missing; using npm install"
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Test
+        if: ${{ steps.finddir.outputs.dir != '' }}
+        working-directory: ${{ steps.finddir.outputs.dir }}
+        run: npm test --if-present -- --ci
+
+      - name: Build
+        if: ${{ steps.finddir.outputs.dir != '' }}
+        working-directory: ${{ steps.finddir.outputs.dir }}
+        run: npm run build --if-present
+
+      - name: Upload artifact
+        if: ${{ steps.finddir.outputs.dir != '' && hashFiles(format('{0}/dist/**', steps.finddir.outputs.dir)) != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: ${{ steps.finddir.outputs.dir }}/dist

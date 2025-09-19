@@ -1,0 +1,23 @@
+name: Deploy to Dev
+
+on:
+  workflow_run:
+    workflows: [ "CI" ]
+    types: [ "completed" ]
+    branches: [ "development" ]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: backend-dist
+      - run: echo "Deploying to Dev..."
