@@ -17,7 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: prod
+
       url: https://kalp.com
+
 
     steps:
       - name: Download frontend artifact from CI run
