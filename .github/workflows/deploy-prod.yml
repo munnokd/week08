@@ -1,0 +1,25 @@
+name: Deploy to Prod
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: https://your-production-url.com
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: backend-dist
+      - run: echo "Deploying to Production..."
