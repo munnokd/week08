@@ -1,25 +1,41 @@
+# .github/workflows/deploy-prod.yml
 name: Deploy to Prod
 
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: [ "CI" ]     # must match CI workflow name exactly
+    types: [ "completed" ]
+    branches: [ "main" ]
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: prod
       url: https://your-production-url.com
-    concurrency:
-      group: deploy-prod
-      cancel-in-progress: false
+
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download frontend artifact from CI run
+        uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: frontend-dist
-      - uses: actions/download-artifact@v4
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download backend artifact from CI run
+        uses: actions/download-artifact@v4
         with:
           name: backend-build
           path: backend-dist
-      - run: echo "Deploying to Production..."
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: echo "Deploying to Production…"
