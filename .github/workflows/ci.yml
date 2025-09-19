@@ -8,26 +8,66 @@ on:
 jobs:
   backend-ci:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/order_service
 
     steps:
       - uses: actions/checkout@v4
 
+      # 1) Show the tree to help you see where files are (useful in logs)
+      - name: Debug repo tree
+        run: |
+          echo "PWD: $(pwd)"
+          ls -la
+          echo "---- top-level ----"
+          ls -la
+          echo "---- find package.json ----"
+          git ls-files | grep -E '(^|/)package.json$' || true
+
+      # 2) Locate the real project directory that has package.json
+      - name: Locate project dir
+        id: finddir
+        shell: bash
+        run: |
+          set -e
+          # common candidates for your repo layout
+          CANDIDATES=$(printf "%s\n" \
+            backend/order_service \
+            backend/order-service \
+            week08/backend/order_service \
+            week09/backend/order_service \
+            backend \
+            . )
+          for d in $CANDIDATES; do
+            if [ -f "$d/package.json" ]; then
+              echo "Found package.json in: $d"
+              echo "dir=$d" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          # generic fallback: first tracked package.json
+          d="$(dirname "$(git ls-files | grep -E '(^|/)package.json$' | head -n1)")"
+          if [ -n "$d" ] && [ -f "$d/package.json" ]; then
+            echo "Found package.json in: $d"
+            echo "dir=$d" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ERROR: Could not find a package.json anywhere." >&2
+          exit 1
+
+      # 3) Setup Node with npm cache; path is relative to repo root
       - name: Setup Node (with npm cache)
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # cache: npm
-          # # path is from REPO ROOT, not working-directory:
-          # cache-dependency-path: backend/order_service/package-lock.json
+          cache: npm
+          cache-dependency-path: ${{ steps.finddir.outputs.dir }}/package-lock.json
 
+      # 4) Ensure npm cache dir exists (prevents 'paths not resolved' on teardown)
       - name: Ensure npm cache dir exists
-        run: |
-          mkdir -p "$(npm config get cache)"
+        run: mkdir -p "$(npm config get cache)"
 
-      - name: Install deps (prefer npm ci, fallback to npm install)
+      # 5) Install deps (prefer ci, fallback to install)
+      - name: Install deps
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -37,14 +77,16 @@ jobs:
           fi
 
       - name: Test
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: npm test --if-present -- --ci
 
       - name: Build
+        working-directory: ${{ steps.finddir.outputs.dir }}
         run: npm run build --if-present
 
       - name: Upload artifact
-        if: ${{ hashFiles('dist/**') != '' }}
+        if: ${{ hashFiles(format('{0}/dist/**', steps.finddir.outputs.dir)) != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: order_service-build
-          path: dist
+          name: build-artifact
+          path: ${{ steps.finddir.outputs.dir }}/dist
