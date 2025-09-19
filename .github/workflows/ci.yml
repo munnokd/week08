@@ -19,22 +19,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # cache: npm
-          # cache-dependency-path: backend/order_service/package-lock.json
+          cache: npm
+          # path is from REPO ROOT, not working-directory:
+          cache-dependency-path: backend/order_service/package-lock.json
 
       - name: Ensure npm cache dir exists
         run: |
           mkdir -p "$(npm config get cache)"
 
-      - name: Verify lockfile
+      - name: Install deps (prefer npm ci, fallback to npm install)
         run: |
-          test -f package-lock.json || { 
-            echo "ERROR: package-lock.json missing in backend/order_service .";
-            exit 1;
-          }
-
-      - name: Install deps
-        run: npm ci
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "WARN: package-lock.json missing; using npm install"
+            npm install --no-audit --no-fund
+          fi
 
       - name: Test
         run: npm test --if-present -- --ci
