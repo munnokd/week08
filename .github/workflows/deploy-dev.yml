@@ -2,9 +2,13 @@ name: Deploy to Dev
 
 on:
   workflow_run:
-    workflows: [ "CI" ]
+    workflows: [ "CI" ]          # must match CI's name exactly
     types: [ "completed" ]
     branches: [ "development" ]
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   deploy:
@@ -12,12 +16,22 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: frontend-dist
-      - uses: actions/download-artifact@v4
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
         with:
           name: backend-build
           path: backend-dist
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - run: echo "Deploying to Dev..."
