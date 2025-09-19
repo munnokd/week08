@@ -15,24 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # DEBUG: show files so we confirm paths exist
-      - name: Debug tree
-        run: |
-          pwd
-          ls -la
-          ls -la backend || true
-          ls -la backend/order_service || true
-          test -f package.json && echo "found package.json"
-          test -f package-lock.json && echo "found package-lock.json" || true
-
-      - name: Setup Node (npm cache via lockfile)
+      - name: Setup Node (with npm cache)
         uses: actions/setup-node@v4
         with:
           node-version: 20
           # cache: npm
-          # # Because working-directory is set, this path is relative to it:
           # cache-dependency-path: backend/order_service/package-lock.json
 
+      - name: Ensure npm cache dir exists
+        run: |
+          mkdir -p "$(npm config get cache)"
+
+      - name: Verify lockfile
+        run: |
+          test -f package-lock.json || { 
+            echo "ERROR: package-lock.json missing in backend/order_service .";
+            exit 1;
+          }
 
       - name: Install deps
         run: npm ci
